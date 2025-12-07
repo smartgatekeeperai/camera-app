@@ -1,0 +1,65 @@
+<ion-header translucent="true" class="camera-header">
+  <ion-toolbar>
+    <ion-title style="text-align: center;">Vehicle Stream</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="camera-content">
+  <!-- Camera + overlay -->
+  <div class="camera-wrapper">
+    <video #video autoplay playsinline muted></video>
+
+    <!-- Overlay canvas (for drawing boxes) -->
+    <canvas #overlayCanvas class="overlay-canvas"></canvas>
+
+    <!-- 🔹 Black splash overlay until camera is ready -->
+    <div class="camera-splash" *ngIf="!isCameraReady">
+      <div class="camera-splash-inner">
+        <div class="camera-splash-title">Preparing camera…</div>
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden canvas only for grabbing raw frames for detection -->
+  <canvas #captureCanvas class="capture-canvas" hidden></canvas>
+
+  <!-- Hidden canvas only for streaming (video + overlay composited) -->
+  <canvas #streamCanvas class="capture-canvas" hidden></canvas>
+
+  <!-- Status pill (bottom-center overlay) -->
+  <div class="status-overlay modal-safe-botom">
+    <div class="status-pill">
+      <div class="status-line">{{ statusMessage }}</div>
+      <div
+        class="status-line"
+        *ngIf="isStreaming && lastDetCount && lastDetCount > 0 && lastFocusPid"
+      >
+        Focus PID: {{ lastFocusPid }}
+      </div>
+      <div
+        class="status-line"
+        *ngIf="isStreaming && lastDetCount && lastDetCount > 0"
+      >
+        Detections: {{ lastDetCount }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Big circular FAB button bottom-center -->
+  <ion-fab
+    vertical="bottom"
+    horizontal="center"
+    slot="fixed"
+    class="capture-fab modal-safe-botom"
+  >
+    <ion-fab-button
+      [color]="isStreaming ? 'danger' : 'light'"
+      (click)="toggleStreaming()"
+    >
+      <ion-icon
+        [name]="isStreaming ? 'stop' : 'radio-button-on'"
+      ></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AI Camera App</string>
+    <string name="title_activity_main">AI Camera App</string>
+    <string name="package_name">com.aicamera.app</string>
+    <string name="custom_url_scheme">com.aicamera.app</string>
+    <string name="google_maps_key">AIzaSyDR-W089hOKqMTmH7PQWvpU1P4TxegKqXY</string>
+</resources>

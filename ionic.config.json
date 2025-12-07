@@ -1,0 +1,7 @@
+{
+  "name": "AI Camera App",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular-standalone"
+}

@@ -1,0 +1,115 @@
+:host {
+  --ion-safe-area-top: env(safe-area-inset-top);
+}
+
+.camera-header {
+  ion-toolbar {
+    --background: transparent;
+    --border-color: transparent;
+    color: #fff;
+  }
+}
+
+.camera-content {
+  --background: #000;
+  position: relative;
+}
+
+/* Wrapper that fills the whole screen */
+.camera-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Fullscreen video like a camera app */
+video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Overlay canvas on top of video for drawing boxes */
+.overlay-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Hidden capture canvas used just for sending frames */
+.capture-canvas {
+  display: none;
+}
+
+/* Status pill overlay (bottom-center) */
+.status-overlay {
+  position: absolute;
+  bottom: 100px;
+  z-index: 10;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-pill {
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 12px;
+  max-width: 80vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bottom-center FAB like camera shutter */
+.capture-fab {
+  ion-fab-button {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.4);
+  }
+
+  ion-icon {
+    font-size: 32px;
+  }
+}
+
+/* 🔹 Camera splash overlay – covers the video until it's ready */
+.camera-splash {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20; /* above status + overlays */
+}
+
+.camera-splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.camera-splash-title {
+  color: #ffffff;
+  font-size: 14px;
+  opacity: 0.85;
+}
