@@ -4,8 +4,7 @@
 
 export const environment = {
   production: false,
-  apiBaseUrl: 'http://10.128.156.46:3000/api',
-  vDetectURL: 'https://82bb56d051cc.ngrok-free.app',
+  apiBaseUrl: 'http://192.168.254.103:8000',
   // apiBaseUrl: 'http://localhost:8000/api',
 };
 

@@ -32,17 +32,11 @@ import {
   DetectService,
   DetectResponse,
   PlateDetection,
+  VehicleDetection,
 } from '../detect.service';
 import { Capacitor } from '@capacitor/core';
 import { Animation, StatusBar, Style } from '@capacitor/status-bar';
-import { HttpClientModule, HttpClient } from '@angular/common/http';
-
-// Vehicle detection imports
-import {
-  VehicleDetectService,
-  VehicleDetectResponse,
-  VehicleDetection,
-} from '../vehicle-detect.service';
+import { HttpClientModule } from '@angular/common/http';
 
 @Component({
   selector: 'app-stream',
@@ -80,7 +74,7 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('overlayCanvas', { static: false })
   overlayCanvasRef!: ElementRef<HTMLCanvasElement>;
 
-  // Hidden canvas used only for grabbing RAW frames for detection (plate + vehicle)
+  // Hidden canvas used only for grabbing RAW frames for detection
   @ViewChild('captureCanvas', { static: false })
   captureCanvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -90,8 +84,7 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
 
   isStreaming = false;
   stream: MediaStream | null = null;
-  intervalId: any = null; // plate + preview loop
-  private vehicleIntervalId: any = null; // separate vehicle loop
+  intervalId: any = null; // capture + detect loop
 
   readonly streamId = 'mobile-1';
 
@@ -99,27 +92,21 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
   lastFocusPid: string | null = null;
   lastDetCount: number | null = null;
 
-  // 🔹 Splash state: show until camera is ready
+  // Splash state
   isCameraReady = false;
 
-  // Capture loop & detection throttle (PLATE ONLY – do not change)
-  readonly captureIntervalMs = 1000; // ~2 FPS stream
-  readonly detectEveryNthFrame = 2; // detect ~every 1s
+  // Capture loop & detection throttle
+  readonly captureIntervalMs = 1000; // 2 frames/sec
+  readonly detectEveryNthFrame = 2; // detect ~ every 1s
   private frameCounter = 0;
 
-  // Concurrency flags
-  private requestInFlight = false; // plate detection only
-  private vehicleRequestInFlight = false; // vehicle detection only
+  // Concurrency flag (combined detection)
+  private requestInFlight = false;
 
-  // Store last results so canvas can draw both together
-  private lastPlateRes: DetectResponse | null = null;
-  private lastVehicleRes: VehicleDetectResponse | null = null;
+  // Last combined detection (plates + vehicles)
+  private lastRes: DetectResponse | null = null;
 
-  constructor(
-    private detectService: DetectService,
-    private http: HttpClient,
-    private vehicleDetectService: VehicleDetectService,
-  ) {
+  constructor(private detectService: DetectService) {
     addIcons({ arrowBack, radioButtonOn, stop });
   }
 
@@ -154,7 +141,7 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
 
-      this.isCameraReady = false; // show splash
+      this.isCameraReady = false;
 
       let stream: MediaStream | null = null;
 
@@ -191,7 +178,6 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
       const videoEl = this.videoRef.nativeElement;
       videoEl.srcObject = this.stream;
 
-      // When the video has enough data -> hide splash + sync overlay
       videoEl.onloadeddata = () => {
         this.isCameraReady = true;
         this.syncOverlaySize();
@@ -260,23 +246,14 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
-    if (this.vehicleIntervalId) {
-      clearInterval(this.vehicleIntervalId);
-    }
 
     this.isStreaming = true;
     this.statusMessage = 'Streaming frames to server…';
     this.frameCounter = 0;
 
-    // Plate + preview loop (unchanged)
     this.intervalId = setInterval(() => {
-      this.captureAndSendFrame(); // PLATE ONLY
+      this.captureAndSendFrame();
     }, this.captureIntervalMs);
-
-    // Separate vehicle detection loop – fully independent
-    this.vehicleIntervalId = setInterval(() => {
-      this.captureAndSendVehicleFrame();
-    }, 100); // vehicle YOLO interval
   }
 
   stopStreaming() {
@@ -285,20 +262,14 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    if (this.vehicleIntervalId) {
-      clearInterval(this.vehicleIntervalId);
-      this.vehicleIntervalId = null;
-    }
     this.statusMessage = 'Streaming stopped.';
     this.clearOverlay();
   }
 
   /**
    * Capture current video frame, send:
-   *  - RAW frame → plate /detect/qwen   (throttled)
-   *  - COMPOSITED → /stream-frame       (every capture)
-   *
-   * 🚫 NO VEHICLE DETECTION HERE ANYMORE
+   *  - RAW frame -> combined /detect (vehicles + plates)  [throttled]
+   *  - COMPOSITED -> /stream-frame                       [always]
    */
   private captureAndSendFrame() {
     if (!this.isStreaming) return;
@@ -319,7 +290,7 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     const scale = targetWidth / width;
     const targetHeight = Math.round(height * scale);
 
-    // RAW canvas for detection (plate)
+    // RAW canvas for detection
     captureCanvasEl.width = targetWidth;
     captureCanvasEl.height = targetHeight;
     const rawCtx = captureCanvasEl.getContext('2d');
@@ -331,7 +302,6 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     streamCanvasEl.height = targetHeight;
     const streamCtx = streamCanvasEl.getContext('2d');
     if (!streamCtx) return;
-
     streamCtx.drawImage(videoEl, 0, 0, targetWidth, targetHeight);
     if (overlayCanvasEl) {
       streamCtx.drawImage(overlayCanvasEl, 0, 0, targetWidth, targetHeight);
@@ -341,46 +311,41 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     streamCanvasEl.toBlob(
       (previewBlob) => {
         if (!previewBlob || !this.isStreaming) return;
-        this.detectService
-          .sendPreviewFrame(previewBlob, this.streamId)
-          .subscribe({
-            next: (_res: { success: boolean }) => {},
-            error: (_err) => {
-              // silent
-            },
-          });
+        this.detectService.sendPreviewFrame(previewBlob, this.streamId).subscribe({
+          next: () => {},
+          error: () => {},
+        });
       },
       'image/jpeg',
       0.7
     );
 
-    // Plate detection throttling
+    // Combined detection throttling
     const shouldDetect = this.frameCounter % this.detectEveryNthFrame === 0;
 
     if (shouldDetect) {
       captureCanvasEl.toBlob(
         (blob) => {
           if (!blob || !this.isStreaming) return;
+          if (this.requestInFlight) return;
 
-          if (!this.requestInFlight) {
-            this.requestInFlight = true;
-            this.detectService.sendFrame(blob, this.streamId).subscribe({
-              next: (res: DetectResponse) => {
-                this.requestInFlight = false;
-                this.lastPlateRes = res; // store
-                this.lastFocusPid = res.data?.focus_plate ?? null;
-                this.lastDetCount = res.data?.detections?.length ?? 0;
-                this.statusMessage = `Streaming… detections: ${this.lastDetCount}`;
-                this.redrawOverlay();
-              },
-              error: (err) => {
-                this.requestInFlight = false;
-                this.statusMessage =
-                  'Error sending frame: ' +
-                  (err?.message || err.statusText || err);
-              },
-            });
-          }
+          this.requestInFlight = true;
+          this.detectService.sendFrame(blob, this.streamId).subscribe({
+            next: (res: DetectResponse) => {
+              this.requestInFlight = false;
+              this.lastRes = res;
+              this.lastFocusPid = res.data?.focus_plate ?? null;
+              this.lastDetCount = res.data?.detections?.length ?? 0;
+              this.statusMessage = `Streaming… detections: ${this.lastDetCount}`;
+              this.redrawOverlay();
+            },
+            error: (err) => {
+              this.requestInFlight = false;
+              this.statusMessage =
+                'Error sending frame: ' +
+                (err?.message || err.statusText || err);
+            },
+          });
         },
         'image/jpeg',
         0.7
@@ -390,57 +355,6 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     this.frameCounter++;
   }
 
-  /**
-   * Completely separate vehicle detection loop.
-   * Uses its own interval and its own in-flight flag.
-   * Does NOT depend on plate detection timing.
-   */
-  private captureAndSendVehicleFrame() {
-    if (!this.isStreaming) return;
-    if (this.vehicleRequestInFlight) return;
-
-    const videoEl = this.videoRef?.nativeElement;
-    const captureCanvasEl = this.captureCanvasRef?.nativeElement;
-    if (!videoEl || !captureCanvasEl) return;
-    if (videoEl.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) return;
-
-    const width = videoEl.videoWidth;
-    const height = videoEl.videoHeight;
-    if (!width || !height) return;
-
-    const targetWidth = 640;
-    const scale = targetWidth / width;
-    const targetHeight = Math.round(height * scale);
-
-    captureCanvasEl.width = targetWidth;
-    captureCanvasEl.height = targetHeight;
-    const ctx = captureCanvasEl.getContext('2d');
-    if (!ctx) return;
-
-    ctx.drawImage(videoEl, 0, 0, targetWidth, targetHeight);
-
-    captureCanvasEl.toBlob(
-      (blob) => {
-        if (!blob || !this.isStreaming) return;
-
-        this.vehicleRequestInFlight = true;
-        this.vehicleDetectService.sendVehicleFrame(blob).subscribe({
-          next: (vres: VehicleDetectResponse) => {
-            this.vehicleRequestInFlight = false;
-            this.lastVehicleRes = vres;
-            this.redrawOverlay();
-          },
-          error: (_err) => {
-            this.vehicleRequestInFlight = false;
-          },
-        });
-      },
-      'image/jpeg',
-      0.7
-    );
-  }
-
-  /** Keep overlay canvas size in sync with the video element. */
   private syncOverlaySize() {
     const videoEl = this.videoRef?.nativeElement;
     const overlayCanvasEl = this.overlayCanvasRef?.nativeElement;
@@ -453,7 +367,6 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     this.clearOverlay();
   }
 
-  /** Clear overlay canvas and stored detections. */
   private clearOverlay() {
     const overlayCanvasEl = this.overlayCanvasRef?.nativeElement;
     if (!overlayCanvasEl) return;
@@ -461,12 +374,13 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     if (!ctx) return;
     ctx.clearRect(0, 0, overlayCanvasEl.width, overlayCanvasEl.height);
 
-    this.lastPlateRes = null;
-    this.lastVehicleRes = null;
+    this.lastRes = null;
   }
 
-  /** Single place that draws BOTH plate + vehicle boxes. */
+  /** Draw BOTH plate + vehicle boxes using a single combined response. */
   private redrawOverlay() {
+    if (!this.lastRes) return;
+
     const overlayCanvasEl = this.overlayCanvasRef?.nativeElement;
     if (!overlayCanvasEl) return;
 
@@ -476,90 +390,83 @@ export class StreamPage implements OnInit, AfterViewInit, OnDestroy {
     const canvasW = overlayCanvasEl.width;
     const canvasH = overlayCanvasEl.height;
 
-    // Clear once per redraw
+    const imgW = this.lastRes.data?.image_w || 1;
+    const imgH = this.lastRes.data?.image_h || 1;
+
     ctx.clearRect(0, 0, canvasW, canvasH);
 
-    // 1) Draw plates first
-    if (this.lastPlateRes) {
-      const res = this.lastPlateRes;
-      const detections = res.data?.detections || [];
-      const imgW = res.data?.image_w || 1;
-      const imgH = res.data?.image_h || 1;
+    // 1) Plates
+    const plateDetections = this.lastRes.data?.detections || [];
+    plateDetections.forEach((det: PlateDetection) => {
+      const b = det.box;
 
-      detections.forEach((det: PlateDetection) => {
-        const b = det.box;
+      let x1: number, y1: number, x2: number, y2: number;
 
-        let x1: number, y1: number, x2: number, y2: number;
+      if (
+        b.nx1 !== undefined &&
+        b.ny1 !== undefined &&
+        b.nx2 !== undefined &&
+        b.ny2 !== undefined &&
+        (b.nx1 !== 0 || b.ny1 !== 0 || b.nx2 !== 0 || b.ny2 !== 0)
+      ) {
+        x1 = b.nx1 * canvasW;
+        y1 = b.ny1 * canvasH;
+        x2 = b.nx2 * canvasW;
+        y2 = b.ny2 * canvasH;
+      } else {
+        x1 = (b.x1 / imgW) * canvasW;
+        y1 = (b.y1 / imgH) * canvasH;
+        x2 = (b.x2 / imgW) * canvasW;
+        y2 = (b.y2 / imgH) * canvasH;
+      }
 
-        if (
-          b.nx1 !== undefined &&
-          b.ny1 !== undefined &&
-          b.nx2 !== undefined &&
-          b.ny2 !== undefined
-        ) {
-          x1 = b.nx1 * canvasW;
-          y1 = b.ny1 * canvasH;
-          x2 = b.nx2 * canvasW;
-          y2 = b.ny2 * canvasH;
-        } else {
-          x1 = (b.x1 / imgW) * canvasW;
-          y1 = (b.y1 / imgH) * canvasH;
-          x2 = (b.x2 / imgW) * canvasW;
-          y2 = (b.y2 / imgH) * canvasH;
-        }
+      const boxW = x2 - x1;
+      const boxH = y2 - y1;
 
-        const boxW = x2 - x1;
-        const boxH = y2 - y1;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = det.is_focus ? '#00ff00' : '#ffcc00';
+      ctx.strokeRect(x1, y1, boxW, boxH);
 
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = det.is_focus ? '#00ff00' : '#ffcc00';
-        ctx.strokeRect(x1, y1, boxW, boxH);
+      const label = det.plate_text || 'Plate';
+      ctx.font = '14px sans-serif';
+      const textWidth = ctx.measureText(label).width;
+      const padding = 4;
+      const labelX = x1;
+      const labelY = Math.max(y1 - 20, 0);
 
-        const label = det.plate_text || 'Plate';
-        ctx.font = '14px sans-serif';
-        const textWidth = ctx.measureText(label).width;
-        const padding = 4;
-        const labelX = x1;
-        const labelY = Math.max(y1 - 20, 0);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(labelX, labelY, textWidth + padding * 2, 18);
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(labelX, labelY, textWidth + padding * 2, 18);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, labelX + padding, labelY + 13);
+    });
 
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(label, labelX + padding, labelY + 13);
-      });
-    }
+    // 2) Vehicles
+    const vehicleDetections = this.lastRes.data?.vehicles || [];
+    vehicleDetections.forEach((det: VehicleDetection) => {
+      const b = det.bbox;
 
-    // 2) Draw vehicles on top
-    if (this.lastVehicleRes) {
-      const vres = this.lastVehicleRes;
-      const detections = vres.vehicles || [];
+      const x = b.nx * canvasW;
+      const y = b.ny * canvasH;
+      const w = b.nwidth * canvasW;
+      const h = b.nheight * canvasH;
 
-      detections.forEach((det: VehicleDetection) => {
-        const b = det.bbox;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#00e5ff'; // cyan for vehicles
+      ctx.strokeRect(x, y, w, h);
 
-        const x = b.nx * canvasW;
-        const y = b.ny * canvasH;
-        const w = b.nwidth * canvasW;
-        const h = b.nheight * canvasH;
+      const label = `${det.class_name} ${(det.confidence * 100).toFixed(1)}%`;
+      ctx.font = '14px sans-serif';
+      const textWidth = ctx.measureText(label).width;
+      const padding = 4;
+      const labelX = x;
+      const labelY = Math.max(y - 20, 0);
 
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#00e5ff'; // cyan for vehicles
-        ctx.strokeRect(x, y, w, h);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(labelX, labelY, textWidth + padding * 2, 18);
 
-        const label = `${det.class_name} ${(det.confidence * 100).toFixed(1)}%`;
-        ctx.font = '14px sans-serif';
-        const textWidth = ctx.measureText(label).width;
-        const padding = 4;
-        const labelX = x;
-        const labelY = Math.max(y - 20, 0);
-
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(labelX, labelY, textWidth + padding * 2, 18);
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(label, labelX + padding, labelY + 13);
-      });
-    }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, labelX + padding, labelY + 13);
+    });
   }
 }

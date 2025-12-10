@@ -205,7 +205,6 @@
                         |-- chunk-FJEJ64TD.js
                         |-- chunk-FNBMHXHF.js
                         |-- chunk-FPOZYJOD.js
-                        |-- chunk-FXLA5C26.js
                         |-- chunk-HB4SCKC2.js
                         |-- chunk-HBUJBB3K.js
                         |-- chunk-HD6PA7V2.js
@@ -225,13 +224,14 @@
                         |-- chunk-LHIDAZ2Q.js
                         |-- chunk-LIK3G657.js
                         |-- chunk-LLRKTPJL.js
+                        |-- chunk-LXIEH4IW.js
                         |-- chunk-LZRSB7U2.js
                         |-- chunk-M2X7KQLB.js
                         |-- chunk-MFXMA3YV.js
                         |-- chunk-MHYVZCKA.js
                         |-- chunk-MOQ7ITFU.js
+                        |-- chunk-MQX5B73H.js
                         |-- chunk-MTHZ7MWU.js
-                        |-- chunk-MXF3KXDP.js
                         |-- chunk-N4QPOVH5.js
                         |-- chunk-N6LJKXTK.js
                         |-- chunk-NA2DTR7Z.js
@@ -283,7 +283,7 @@
                         |-- cordova.js
                         |-- cordova_plugins.js
                         |-- index.html
-                        |-- main-53IBMH6L.js
+                        |-- main-LMJBSEG2.js
                         |-- media
                             |-- Poppins-Bold-QAA2AGZS.ttf
                             |-- Poppins-Regular-JNHL4IDV.ttf
@@ -475,8 +475,6 @@
             |-- stream.page.scss
             |-- stream.page.spec.ts
             |-- stream.page.ts
-        |-- vehicle-detect.service.spec.ts
-        |-- vehicle-detect.service.ts
     |-- assets
         |-- fonts
             |-- poppins
@@ -603,7 +601,6 @@
     |-- chunk-FJEJ64TD.js
     |-- chunk-FNBMHXHF.js
     |-- chunk-FPOZYJOD.js
-    |-- chunk-FXLA5C26.js
     |-- chunk-HB4SCKC2.js
     |-- chunk-HBUJBB3K.js
     |-- chunk-HD6PA7V2.js
@@ -623,13 +620,14 @@
     |-- chunk-LHIDAZ2Q.js
     |-- chunk-LIK3G657.js
     |-- chunk-LLRKTPJL.js
+    |-- chunk-LXIEH4IW.js
     |-- chunk-LZRSB7U2.js
     |-- chunk-M2X7KQLB.js
     |-- chunk-MFXMA3YV.js
     |-- chunk-MHYVZCKA.js
     |-- chunk-MOQ7ITFU.js
+    |-- chunk-MQX5B73H.js
     |-- chunk-MTHZ7MWU.js
-    |-- chunk-MXF3KXDP.js
     |-- chunk-N4QPOVH5.js
     |-- chunk-N6LJKXTK.js
     |-- chunk-NA2DTR7Z.js
@@ -679,7 +677,7 @@
     |-- chunk-ZVC2VDST.js
     |-- chunk-ZYPNVY6A.js
     |-- index.html
-    |-- main-53IBMH6L.js
+    |-- main-LMJBSEG2.js
     |-- media
         |-- Poppins-Bold-QAA2AGZS.ttf
         |-- Poppins-Regular-JNHL4IDV.ttf
